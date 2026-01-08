@@ -11,7 +11,7 @@
   "test": false,
   "store_gpu": true,
   "layer_norm": false,
-  "num_epochs": 10000,
+  "num_epochs": 15000,
   "repetitions": 1,
   "lr":0.0005,
   "Tik": false,
@@ -24,22 +24,7 @@
   },
   "experiments": [
     {
-      "num_trajs": 15, "batch_size": 512, "env": "CP"
-    },
-    {
-      "num_trajs": 2, "batch_size": 64, "env": "CP"
-    },
-    {
-      "num_trajs": 15, "batch_size": 512, "env": "LL"
-    },
-    {
-      "num_trajs": 2, "batch_size": 64, "env": "LL"
-    },
-    {
-       "num_trajs": 15, "batch_size": 512, "env": "AC"
-    },
-    {
-      "num_trajs": 2, "batch_size": 64, "env": "AC"
+       "num_trajs": 15, "batch_size": 256
     }
   ]
 }

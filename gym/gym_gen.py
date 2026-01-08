@@ -96,15 +96,15 @@ def generate(config):
     
     if config["env"] == "LL":
         env_name = "LL"
-        path = "Expert_policy/LunarLander-v2_PPO.zip"
+        path = "gym/Expert_policy/LunarLander-v2_PPO.zip"
     elif config["env"] == "CP":
         env_name = "CP"
         env = gym.make("CartPole-v1")
-        path = "Expert_policy/CartPole-v1_PPO.zip"
+        path = "gym/Expert_policy/CartPole-v1_PPO.zip"
     elif config["env"] == "AC":
         env_name = "AC"
         env = gym.make("Acrobot-v1")
-        path = "Expert_policy/Acrobot-v1_PPO.zip"
+        path = "gym/Expert_policy/Acrobot-v1_PPO.zip"
     else:
         print("Invalid environment")
         exit(1)

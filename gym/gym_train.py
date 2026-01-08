@@ -364,9 +364,9 @@ def train(config):
                     model.zero_grad() #clear gradients for the batch. This prevents the accumulation of gradients.
             
                 else:  # update Q only, update Q every 2 batches
-                    #ce_loss = CrossEntropy_loss_fn(pred_q_values_reshaped, true_actions_reshaped) #shape  is (batch_size*horizon,)
-                    Mean_CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
-                    ce_loss = Mean_CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
+                    
+                    # Mean_CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+                    # ce_loss = Mean_CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
                   
                     #Setting pivot reward does not affect anything. So whatever we fix it it does not
                     # harm or benefit the outcome. However, for evaluation convenience, 
@@ -384,18 +384,18 @@ def train(config):
                     be_error_naive = td_error**2-config['beta']**2 * vnext_dev**2 #dimension is (batch_size*horizon,)
                     #We call it naive because we just add pivot r for every actions we see in the batch
                     
-                    #At terminal state, terminal action is trival. Set it as pivot action.
-                    if config['env'] == 'LL':
-                        #For LunarLander, set the pivot action to be action 2. 
-                        indices_TF = (true_actions == 2) | done
-                    if config['env'] == 'AC':
-                        #For Acrobot, set the pivot action to be 0.
-                        indices_TF = (true_actions == 0) | done
-                    if config['env'] == 'CP':
-                        #For CartPole, set the pivot action to be 0.
-                        indices_TF = (true_actions == 0) | done
+                    # #At terminal state, terminal action is trival. Set it as pivot action.
+                    # if config['env'] == 'LL':
+                    #     #For LunarLander, set the pivot action to be action 2. 
+                    #     indices_TF = (true_actions == 2) | done
+                    # if config['env'] == 'AC':
+                    #     #For Acrobot, set the pivot action to be 0.
+                    #     indices_TF = (true_actions == 0) | done
+                    # if config['env'] == 'CP':
+                    #     #For CartPole, set the pivot action to be 0.
+                    #     indices_TF = (true_actions == 0) | done
                         
-                    be_error_0 = be_error_naive[indices_TF] 
+                    be_error_0 = be_error_naive
                     
                     mean_MAE_loss_fn = torch.nn.L1Loss(reduction='mean')
                     
@@ -403,13 +403,13 @@ def train(config):
                     #number of action=2 in the batch does not matter, as we normalize the loss by the number of action=2 in the batch
                     
                     #Tikhonov
-                    if config['Tik'] == True:
-                        loss = 100*(1/(1+epoch))*ce_loss + be_loss
-                    else:               
-                        loss = 10*ce_loss + be_loss
+                    # if config['Tik'] == True:
+                    #     loss = 100*(1/(1+epoch))*ce_loss + be_loss
+                    # else:               
+                    #     loss = 10*ce_loss + be_loss
                     #
                     
-                    loss.backward()
+                    be_loss.backward()
                     
                     #Non-fixed lr part starts
                     current_lr_q = config['lr'] / (1 + config['decay']*epoch)
@@ -423,11 +423,11 @@ def train(config):
                 
                     model.zero_grad()
                     
-                    epoch_train_loss += loss.item() 
+                    # epoch_train_loss += loss.item() 
                     epoch_train_be_loss += be_loss.item() 
-                    epoch_train_ce_loss += ce_loss.item() 
+                    # epoch_train_ce_loss += ce_loss.item() 
                     
-                    print(f"Epoch_train_loss: {epoch_train_loss}", end='\r')
+                    # print(f"Epoch_train_loss: {epoch_train_loss}", end='\r')
 
                 
                 if i == 0: #i=0 means the first batch
@@ -445,16 +445,16 @@ def train(config):
                 
                 
             #len(train_dataset) is the number of batches in the training dataset
-            train_loss.append(epoch_train_loss / len(train_loader)) 
+            # train_loss.append(epoch_train_loss / len(train_loader)) 
             train_be_loss.append(epoch_train_be_loss / len(train_loader))
-            train_ce_loss.append(epoch_train_ce_loss / len(train_loader))
+            # train_ce_loss.append(epoch_train_ce_loss / len(train_loader))
             train_D_loss.append(epoch_train_D_loss / len(train_loader))
 
             end_time = time.time()
             
-            printw(f"\tTrain loss: {train_loss[-1]}", config)
+            # printw(f"\tTrain loss: {train_loss[-1]}", config)
             printw(f"\tBE loss: {train_be_loss[-1]}", config)
-            printw(f"\tCE loss: {train_ce_loss[-1]}", config)
+            # printw(f"\tCE loss: {train_ce_loss[-1]}", config)
             printw(f"\tTrain time: {end_time - start_time}", config)
 
 
@@ -467,13 +467,13 @@ def train(config):
             if (epoch + 1) % 1 == 0:
                 plt.figure(figsize=(12, 12))  # Increase the height to fit all plots
     
-                # Plotting total train loss
-                plt.subplot(5, 1, 1) # Adjust to 6x1 grid
-                plt.yscale('log')
-                plt.xlabel('epoch')
-                plt.ylabel('Total Train Loss')
-                plt.plot(train_loss[1:], label="Total Train Loss")
-                plt.legend()
+                # # Plotting total train loss
+                # plt.subplot(5, 1, 1) # Adjust to 6x1 grid
+                # plt.yscale('log')
+                # plt.xlabel('epoch')
+                # plt.ylabel('Total Train Loss')
+                # plt.plot(train_loss[1:], label="Total Train Loss")
+                # plt.legend()
 
                 # Plotting BE loss
                 plt.subplot(5, 1, 2) # Second plot in a 6x1 grid
@@ -483,13 +483,13 @@ def train(config):
                 plt.plot(train_be_loss[1:], label="Bellman Error Loss", color='red')
                 plt.legend()
 
-                # Plotting CE loss
-                plt.subplot(5, 1, 3) # Third plot in a 6x1 grid
-                plt.yscale('log')
-                plt.xlabel('epoch')
-                plt.ylabel('Train CE Loss')
-                plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
-                plt.legend()
+                # # Plotting CE loss
+                # plt.subplot(5, 1, 3) # Third plot in a 6x1 grid
+                # plt.yscale('log')
+                # plt.xlabel('epoch')
+                # plt.ylabel('Train CE Loss')
+                # plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
+                # plt.legend()
                 
                 # Plotting r MAPE loss 
                 plt.subplot(5, 1, 4) # Fifth plot in a 6x1 grid

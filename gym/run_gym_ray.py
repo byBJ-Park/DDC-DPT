@@ -5,6 +5,7 @@ import gym_gen, gym_train
 import ray
 import os
 
+
 @ray.remote(num_gpus=0.1)  # Request a small amount of GPU to allow for dynamic allocation
 def run_data_generation_and_training(config, gpu_id=None):
     if gpu_id is not None:

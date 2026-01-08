@@ -3409,3 +3409,75 @@ PID 1383151 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, s
 PID 1383151 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=2, batch_size=64): Starting training
 PID 1383155 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Completed data generation
 PID 1383155 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Starting training
+PID 2096331 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=15, batch_size=512): Starting data generation
+PID 2096331 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096331 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096330 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=2, batch_size=64): Starting data generation
+PID 2096330 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096330 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096339 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=15, batch_size=512): Starting data generation
+PID 2096339 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096339 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096337 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=2, batch_size=64): Starting data generation
+PID 2096337 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096337 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096332 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=2, batch_size=64): Starting data generation
+PID 2096332 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096332 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096329 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Starting data generation
+PID 2096329 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096329 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096327 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=15, batch_size=512): Starting data generation
+PID 2096327 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096327 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096335 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=2, batch_size=64): Starting data generation
+PID 2096335 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096335 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096341 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=2, batch_size=64): Starting data generation
+PID 2096341 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096340 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=2, batch_size=64): Starting data generation
+PID 2096341 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096340 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096340 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096336 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=15, batch_size=512): Starting data generation
+PID 2096336 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096336 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096334 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Starting data generation
+PID 2096334 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096334 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096343 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=15, batch_size=512): Starting data generation
+PID 2096343 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096343 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096342 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=15, batch_size=512): Starting data generation
+PID 2096342 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096342 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096338 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Starting data generation
+PID 2096338 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096338 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096328 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=2, batch_size=64): Starting data generation
+PID 2096328 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096328 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096345 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=2, batch_size=64): Starting data generation
+PID 2096345 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096345 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096333 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=2, batch_size=64): Starting data generation
+PID 2096333 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096333 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096351 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=2, batch_size=64): Starting data generation
+PID 2096351 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096351 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096349 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=2, batch_size=64): Starting data generation
+PID 2096349 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096349 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096347 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=LL, num_trajs=15, batch_size=512): Starting data generation
+PID 2096347 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096347 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096348 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=2, batch_size=64): Starting data generation
+PID 2096348 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096348 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096346 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=CP, num_trajs=15, batch_size=512): Starting data generation
+PID 2096346 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096346 - Device cuda:0 - Allocated GPU memory: 0.00 GB
+PID 2096344 - Device cuda:0 - Experiment config (beta=1, h_size=64, n_layer=2, shuffle=True, seed=1, test=False, store_gpu=True, layer_norm=False, num_epochs=10000, repetitions=1, lr=0.0005, Tik=False, decay=0.001, clip=1, env=AC, num_trajs=15, batch_size=512): Starting data generation
+PID 2096344 - Device cuda:0 - Using GPU: Tesla V100-DGXS-32GB
+PID 2096344 - Device cuda:0 - Allocated GPU memory: 0.00 GB
