@@ -282,12 +282,8 @@ def train(config):
     
     for rep in range(repetitions):
         print(f"\nStarting repetition {rep+1}/{repetitions}")
-        if episode_returns.size > 0:
-            rep_episode_returns.append(episode_returns)
             
-        train_loss = []
         train_be_loss = []
-        train_ce_loss = []
         train_D_loss = []
         test_r_MAPE_loss = []
         update_steps = []
@@ -550,11 +546,13 @@ def train(config):
                 plt.savefig(f"figs/loss/{build_log_filename(config)}_rep{rep}_losses.png")
                 plt.close()
                 
-            if episode_returns.size > 0 and (update + 1) % eval_interval == 0:
-                update_steps.append(update + 1)
-                avg_episode_return = float(np.mean(episode_returns))
-                avg_episode_returns.append(avg_episode_return)
-                printw(f"\tAverage episode return: {avg_episode_return}", config)
+            if (update + 1) % eval_interval == 0:
+                episode_returns = np.asarray(getattr(train_dataset, "episode_returns", []))
+                if episode_returns.size > 0:
+                    update_steps.append(update + 1)
+                    avg_episode_return = float(np.mean(episode_returns))
+                    avg_episode_returns.append(avg_episode_return)
+                    printw(f"\tAverage episode return: {avg_episode_return}", config)
 
             ############### Finish of an update ##############
         ##### Finish of all epochs #####
@@ -598,33 +596,22 @@ def train(config):
     plt.savefig(f"figs/loss/Reps{repetitions}_{build_log_filename(config)}_losses.png")
     plt.close()
     
-    if rep_episode_returns:
-        plt.figure()
-        all_returns = []
-        for returns in rep_episode_returns:
-            steps = np.arange(len(returns))
-            all_returns.append(returns)
-            plt.plot(steps, returns, alpha=0.3)
-        mean_returns = np.mean(all_returns, axis=0)
-        std_returns = np.std(all_returns, axis=0)
-        plt.plot(steps, mean_returns, linewidth=2, color='red')
-        plt.fill_between(steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
-        env_name = config.get("env", "env")
-        plt.title(f"gladius ({env_name} offline mixed)")
-        plt.xlabel("Gradient Updates")
-        plt.ylabel("Average Episode Reward")
-        plt.savefig(f"figs/loss/Reps{repetitions}_{build_log_filename(config)}_episode_returns.png")
-        plt.close()    
-        
-        if any(rep_episode_returns):
+    if rep_episode_returns and rep_update_steps:
+        min_len = min(len(returns) for returns in rep_episode_returns)
+        min_len = min(min_len, min(len(steps) for steps in rep_update_steps))
+        if min_len > 0:
+            
             plt.figure()
             all_returns = []
             for returns, steps in zip(rep_episode_returns, rep_update_steps):
-                all_returns.append(returns)
-                plt.plot(steps, returns, alpha=0.3)
+                trimmed_returns = np.asarray(returns[:min_len])
+                trimmed_steps = np.asarray(steps[:min_len])
+                all_returns.append(trimmed_returns)
+                plt.plot(trimmed_steps, trimmed_returns, alpha=0.3)
+
             mean_returns = np.mean(all_returns, axis=0)
             std_returns = np.std(all_returns, axis=0)
-            plot_steps = rep_update_steps[0]
+            plot_steps = np.asarray(rep_update_steps[0][:min_len])
             plt.plot(plot_steps, mean_returns, linewidth=2, color='red')
             plt.fill_between(plot_steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
             env_name = config.get("env", "env")
