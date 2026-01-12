@@ -10,7 +10,6 @@ from mlp import MLP
 from datetime import datetime
 
 
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 ENV_DATASET_FILES = {
