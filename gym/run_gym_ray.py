@@ -6,14 +6,18 @@ import ray
 import os
 
 
-@ray.remote(num_gpus=0.1)  # Request a small amount of GPU to allow for dynamic allocation
+@ray.remote(num_gpus=1) 
 def run_data_generation_and_training(config, gpu_id=None):
     if gpu_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    else:
+        assigned_gpu_ids = ray.get_gpu_ids()
+        if assigned_gpu_ids:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(assigned_gpu_ids[0]))
     
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{torch.cuda.current_device()}")
-        torch.cuda.set_device(device)
+        device = torch.device("cuda:0")
+        torch.cuda.set_device(0)
     else:
         device = torch.device("cpu")
     
@@ -59,16 +63,29 @@ if __name__ == "__main__":
     # Get the number of GPUs
     num_gpus = torch.cuda.device_count()
 
+    envs = env_config.get("envs") if isinstance(env_config, dict) else None
+    if not envs:
+        envs = env_config.get("env")
+        if not envs:
+            envs = []
+    if not isinstance(envs, list):
+        envs = [envs]
+        
     # Submit tasks to Ray
     results = []
-    for i, experiment in enumerate(experiments):
-        # Merge configurations for each experiment
-        config = {**global_config, **training_config, **env_config, **experiment}
-        
-        # Assign GPU in a round-robin fashion if GPUs are available
-        gpu_id = i % num_gpus if num_gpus > 0 else None
-        
-        results.append(run_data_generation_and_training.remote(config, gpu_id))
+    run_index = 0
+    for env in envs:
+        per_env_config = {k: v for k, v in env_config.items() if k != "envs"}
+        per_env_config["env"] = env
+        for experiment in experiments:
+            # Merge configurations for each experiment
+            config = {**global_config, **training_config, **per_env_config, **experiment}
+
+            # Assign GPU in a round-robin fashion if GPUs are available
+            gpu_id = run_index % num_gpus if num_gpus > 0 else None
+            run_index += 1
+
+            results.append(run_data_generation_and_training.remote(config, gpu_id))
 
     # Wait for all tasks to complete
     ray.get(results)

@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import torch.nn as nn
-import torch.nn.functional as F
-import gymnasium as gym
 from mlp import MLP
 from datetime import datetime
 
@@ -20,13 +18,6 @@ ENV_DATASET_FILES = {
     "CP": "D_Cartpole_medium_mixed.npz",
     "AC": "D_Acrobot_medium_mixed.npz",
 }
-
-ENV_GYM_IDS = {
-    "LL": "LunarLander-v2",
-    "CP": "CartPole-v1",
-    "AC": "Acrobot-v1",
-}
-
 ENV_ALIASES = {
     "LL": ["lunarlander"],
     "CP": ["cartpole"],
@@ -67,26 +58,6 @@ def resolve_npz_path(config):
                 if alias in candidate.lower():
                     return os.path.join(dataset_dir, candidate)
     return None
-
-def evaluate_policy(model, env_id, episodes, device):
-    env = gym.make(env_id)
-    returns = []
-    for _ in range(episodes):
-        obs, _ = env.reset()
-        done = False
-        total_reward = 0.0
-        while not done:
-            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
-            batch = {'states': obs_tensor, 'next_states': obs_tensor}
-            with torch.no_grad():
-                q_values, _, _ = model(batch)
-                action = torch.argmax(q_values, dim=1).item()
-            obs, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-            total_reward += reward
-        returns.append(total_reward)
-    env.close()
-    return float(np.mean(returns)) if returns else None
 
 class Dataset(torch.utils.data.Dataset):
     """Optimized Dataset class for storing and sampling (s, a, r, s') transitions."""
@@ -144,9 +115,6 @@ class Dataset(torch.utils.data.Dataset):
         for key in self.dataset.keys():
             self.dataset[key] = self.dataset[key][indices]
         
-    def sample_batch(self, batch_size):
-        indices = torch.randint(0, len(self.dataset['states']), (batch_size,))
-        return {key: value[indices] for key, value in self.dataset.items()}
     
     @staticmethod
     def convert_to_tensor(x, store_gpu):
@@ -252,12 +220,14 @@ def train(config):
     dataset_config['dataset_file'] = npz_path
     train_dataset = Dataset(npz_path, dataset_config)
     test_dataset = train_dataset
-    
-    batch_size = config['batch_size']
-    num_updates = config.get('num_updates', config['num_epochs'])
-    eval_interval = config.get('eval_interval', 1)
-    eval_episodes = config.get('eval_episodes', 5)
-    eval_batches = config.get('eval_batches', 1)
+
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=config['batch_size'], shuffle=config['shuffle']
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=config['batch_size'], shuffle=config['shuffle']
+    )
 
     if config['env'] == 'LL':
         states_dim = 8
@@ -289,7 +259,7 @@ def train(config):
     vnext_optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'], weight_decay=1e-4)
     CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
     MSE_loss_fn = torch.nn.MSELoss(reduction='mean')
-    ce_weight = config.get('ce_weight', 1.0)
+    MAE_loss_fn = torch.nn.L1Loss(reduction='mean')
     
     repetitions = config['repetitions']  # Number of repetitions
 
@@ -308,38 +278,39 @@ def train(config):
     rep_test_r_MAPE_loss = []
     rep_best_r_MAPE_loss = []
     rep_episode_returns = []
-    rep_update_steps = []
+
     
     for rep in range(repetitions):
         print(f"\nStarting repetition {rep+1}/{repetitions}")
+        if episode_returns.size > 0:
+            rep_episode_returns.append(episode_returns)
             
+        train_loss = []
         train_be_loss = []
         train_ce_loss = []
         train_D_loss = []
         test_r_MAPE_loss = []
-        update_steps = []
-        avg_episode_returns = []
-        last_eval_episode_return = None
         
         #Storing the best training epoch and its corresponding best Q MSE loss/Q values
         best_epoch = -1
         best_r_MAPE_loss = 9999
       
         
-        for update in tqdm(range(num_updates), desc="Training Progress"):
+        for epoch in tqdm(range(config['num_epochs']), desc="Training Progress"):
             
             ############### Start of an epoch ##############
             
             ### EVALUATION ###
-            printw(f"Update: {update + 1}", config)
+            printw(f"Epoch: {epoch + 1}", config)
             start_time = time.time()
             with torch.no_grad():
                 epoch_r_MAPE_loss = 0.0
                 
                 ##### Test batch loop #####
                 
-                for _ in range(eval_batches):
-                    batch = {k: v.to(device) for k, v in test_dataset.sample_batch(batch_size).items()}
+                for i, batch in enumerate(test_loader):
+                    print(f"Batch {i} of {len(test_loader)}", end='\r')
+                    batch = {k: v.to(device) for k, v in batch.items()} 
                     states = batch['states']
                     pred_q_values, pred_q_values_next, pred_vnext_values = model(batch) #dimension is (batch, action_dim)
                     
@@ -363,18 +334,18 @@ def train(config):
                     
                     
                 
-                ##### Finish of the batch loop for a single update #####
-                ##### Back to update level #####
+                ##### Finish of the batch loop for a single epoch #####
+                ##### Back to epoch level #####
                 # Note that epoch MSE losses are sum of all test batch means in the epoch
                 
-                if epoch_r_MAPE_loss / eval_batches < best_r_MAPE_loss: #epoch_r_MAPE_loss is sum of all test batch means in the update #epoch_r_MAPE_loss is sum of all test batch means in the epoch
+                if epoch_r_MAPE_loss/len(test_loader) < best_r_MAPE_loss: #epoch_r_MAPE_loss is sum of all test batch means in the epoch
         
-                    best_r_MAPE_loss = epoch_r_MAPE_loss / eval_batches
-                    best_epoch = update         
+                    best_r_MAPE_loss = epoch_r_MAPE_loss/len(test_loader) #len(test_dataset) is the number of batches in the test dataset
+                    best_epoch = epoch          
             
             ############# Finish of an epoch's evaluation ############
     
-            test_r_MAPE_loss.append(epoch_r_MAPE_loss / eval_batches) #mean of all test batch means in the update
+            test_r_MAPE_loss.append(epoch_r_MAPE_loss / len(test_loader)) #mean of all test batch means in the epoch
             
             end_time = time.time()
             #printw(f"\tCross entropy test loss:
@@ -394,181 +365,189 @@ def train(config):
             
             torch.autograd.set_detect_anomaly(True)
             
-            batch = {k: v.to(device) for k, v in train_dataset.sample_batch(batch_size).items()}
             
-            pred_q_values, pred_q_values_next, pred_vnext_values  = model(batch) 
-            
-            true_actions = batch['actions'].long() 
-            states = batch['states']
-            
-            true_rewards = batch['rewards']
-            
-            ### Q(s,a) 
-            chosen_q_values = torch.gather(pred_q_values, dim=1, index=true_actions.unsqueeze(-1)) #dimension is (batch_size, horizon)
-            chosen_vnext_values = torch.gather(pred_vnext_values, dim=1, index=true_actions.unsqueeze(-1)) #dimension is (batch_size, horizon)
-            
-            #Empirical V(s') = logsumexp Q(s',a') + gamma
-            logsumexp_nextstate = torch.logsumexp(pred_q_values_next, dim=1) #dimension is (batch_size*horizon,)
+            for i, batch in enumerate(train_loader): #For batch i in the training dataset
+                print(f"Batch {i} of {len(train_loader)}", end='\r')
+                batch = {k: v.to(device) for k, v in batch.items()} #dimension is (batch_size, horizon, state_dim)
                 
-            vnext = logsumexp_nextstate
-            done = batch['done'].to(torch.bool)
-            vnext = torch.where(done, torch.tensor(0.0, device=vnext.device), vnext)
-            
-            #D update only. Fitting V(s') prediction to logsumexp Q(s',a) prediction
-            if update % 2 == 0: # update xi only, update xi every 2 updates
+                pred_q_values, pred_q_values_next, pred_vnext_values  = model(batch) 
 
-                #V(s')-E[V(s')] minimization loss
-                D = MSE_loss_fn(vnext.clone().detach(), chosen_vnext_values)
-                D.backward()
-                    
-                #Non-fixed lr part starts
-                current_lr_vnext = config['lr'] / (1 + config['decay']*update)
-                vnext_optimizer.param_groups[0]['lr'] = current_lr_vnext
-                #Non-fixed lr part ends
-                    
-                if config['clip'] != False:                    
-                    torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=config['clip'])
-                                      
-                vnext_optimizer.step() #we use separate optimizer for vnext
-                vnext_optimizer.zero_grad() #clear gradients for the batch
-                epoch_train_D_loss += D.item()  #per-sample loss
-                model.zero_grad() #clear gradients for the batch. This prevents the accumulation of gradients.
+                true_actions = batch['actions'].long() 
+                states = batch['states']
                 
-            else:  # update Q only, update Q every 2 updates
-                # Mean_CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
-                # ce_loss = Mean_CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
-                ce_loss = CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
-
-                #Setting pivot reward does not affect anything. So whatever we fix it it does not
-                # harm or benefit the outcome. However, for evaluation convenience,
-                #we give the true reward for as the pivot action's reward.
-
-                #Just put true rewards for all actions in the batch for now, to calculate td
-                pivot_rewards = true_rewards
-
-                td_error = chosen_q_values - pivot_rewards- config['beta'] * vnext #\delta(s,a) = Q(s,a) - r(s,a) - beta*V(s')
-                td_error = torch.where(done, chosen_q_values - pivot_rewards, td_error)
-
-                vnext_dev = (vnext - chosen_vnext_values.clone().detach())
-                #Bi-conjugate trick to compute the Bellman error
-                be_error_naive = td_error**2-config['beta']**2 * vnext_dev**2 #dimension is (batch_size*horizon,)
-                #We call it naive because we just add pivot r for every actions we see in the batch
-
-                # #At terminal state, terminal action is trival. Set it as pivot action.
-                # if config['env'] == 'LL':
-                #     #For LunarLander, set the pivot action to be action 2.
-                #     indices_TF = (true_actions == 2) | done
-                # if config['env'] == 'AC':
-                #     #For Acrobot, set the pivot action to be 0.
-                #     indices_TF = (true_actions == 0) | done
-                # if config['env'] == 'CP':
-                #     #For CartPole, set the pivot action to be 0.
-                #     indices_TF = (true_actions == 0) | done
-
-                be_error_0 = be_error_naive
-
-                mean_MAE_loss_fn = torch.nn.L1Loss(reduction='mean')
-
-                be_loss = mean_MAE_loss_fn(be_error_0, torch.zeros_like(be_error_0))
-                #number of action=2 in the batch does not matter, as we normalize the loss by the number of action=2 in the batch
-
-                #Tikhonov
-                # if config['Tik'] == True:
-                #     loss = 100*(1/(1+epoch))*ce_loss + be_loss
-                # else:
-                #     loss = 10*ce_loss + be_loss
-                #
-
-                if ce_weight:
-                    loss = ce_weight * ce_loss + be_loss
-                else:
-                    loss = be_loss
-                    
-                loss.backward()
-
-                #Non-fixed lr part starts
-                current_lr_q = config['lr'] / (1 + config['decay']*update)
-                q_optimizer.param_groups[0]['lr'] = current_lr_q
-                #Non-fixed lr part ends
-
-                if config['clip'] != False:
-                    torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=config['clip'])
-                q_optimizer.step()
-                q_optimizer.zero_grad() #clear gradients for the batch
-
-                model.zero_grad()
-
-                # epoch_train_loss += loss.item()
-                epoch_train_be_loss += loss.item()
-                epoch_train_ce_loss += ce_loss.item()
-
-                # print(f"Epoch_train_loss: {epoch_train_loss}", end='\r')
-
-            pred_r_values_print = pred_q_values[:10,:] - config['beta']*pred_vnext_values[:10,:] #for print
-            chosen_r_values_print = torch.gather(pred_r_values_print, dim=1, index=true_actions[:10].unsqueeze(-1)) #for print
-            true_r_values_print = true_rewards[:10].unsqueeze(1) #for print
-            actions_print = true_actions[:10].int().unsqueeze(1) #for print
+                true_rewards = batch['rewards']
+                
+                ### Q(s,a) 
+                chosen_q_values = torch.gather(pred_q_values, dim=1, index=true_actions.unsqueeze(-1)) #dimension is (batch_size, horizon)
+                chosen_vnext_values = torch.gather(pred_vnext_values, dim=1, index=true_actions.unsqueeze(-1)) #dimension is (batch_size, horizon)
+                
+                #Empirical V(s') = logsumexp Q(s',a') + gamma
+                logsumexp_nextstate = torch.logsumexp(pred_q_values_next, dim=1) #dimension is (batch_size*horizon,)
         
-            pred_r_values_with_true_r = torch.cat((actions_print, true_r_values_print, chosen_r_values_print), dim=1) #dimension is (batch_size, state_dim+action_dim)
-            pred_r_values_np = pred_r_values_with_true_r.cpu().clone().detach().numpy()
-            np.set_printoptions(suppress=True, precision=6)
-            printw(f"Predicted r values: {pred_r_values_np}", config)
+                vnext = logsumexp_nextstate
+                done = batch['done'].to(torch.bool)
+                vnext = torch.where(done, torch.tensor(0.0, device=vnext.device), vnext)
+                
+                
+                #D update only. Fitting V(s') prediction to logsumexp Q(s',a) prediction
+                if i % 2 == 0: # update xi only, update xi every 2 batches
+
+                    #V(s')-E[V(s')] minimization loss
+                    D = MSE_loss_fn(vnext.clone().detach(), chosen_vnext_values)
+                    D.backward()
+                    
+                    #Non-fixed lr part starts
+                    current_lr_vnext = config['lr'] / (1 + config['decay']*epoch)
+                    vnext_optimizer.param_groups[0]['lr'] = current_lr_vnext
+                    #Non-fixed lr part ends
+                    
+                    if config['clip'] != False:                    
+                        torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=config['clip'])
+                    
+                    vnext_optimizer.step() #we use separate optimizer for vnext
+                    vnext_optimizer.zero_grad() #clear gradients for the batch
+                    epoch_train_D_loss += D.item()  #per-sample loss
+                    model.zero_grad() #clear gradients for the batch. This prevents the accumulation of gradients.
+            
+                else:  # update Q only, update Q every 2 batches
+                    
+                    # Mean_CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+                    # ce_loss = Mean_CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
+                  
+                    #Setting pivot reward does not affect anything. So whatever we fix it it does not
+                    # harm or benefit the outcome. However, for evaluation convenience, 
+                    #we give the true reward for as the pivot action's reward.
+            
+                    #Just put true rewards for all actions in the batch for now, to calculate td
+                    pivot_rewards = true_rewards 
+                    
+                    td_error = chosen_q_values - pivot_rewards- config['beta'] * vnext #\delta(s,a) = Q(s,a) - r(s,a) - beta*V(s')                    
+                    td_error = torch.where(done, chosen_q_values - pivot_rewards, td_error)
+
+                    
+                    vnext_dev = (vnext - chosen_vnext_values.clone().detach())
+                    #Bi-conjugate trick to compute the Bellman error
+                    be_error_naive = td_error**2-config['beta']**2 * vnext_dev**2 #dimension is (batch_size*horizon,)
+                    #We call it naive because we just add pivot r for every actions we see in the batch
+                    
+                    # #At terminal state, terminal action is trival. Set it as pivot action.
+                    # if config['env'] == 'LL':
+                    #     #For LunarLander, set the pivot action to be action 2. 
+                    #     indices_TF = (true_actions == 2) | done
+                    # if config['env'] == 'AC':
+                    #     #For Acrobot, set the pivot action to be 0.
+                    #     indices_TF = (true_actions == 0) | done
+                    # if config['env'] == 'CP':
+                    #     #For CartPole, set the pivot action to be 0.
+                    #     indices_TF = (true_actions == 0) | done
+                        
+                    be_error_0 = be_error_naive
+                    
+                    mean_MAE_loss_fn = torch.nn.L1Loss(reduction='mean')
+                    
+                    be_loss = mean_MAE_loss_fn(be_error_0, torch.zeros_like(be_error_0))
+                    #number of action=2 in the batch does not matter, as we normalize the loss by the number of action=2 in the batch
+                    
+                    #Tikhonov
+                    # if config['Tik'] == True:
+                    #     loss = 100*(1/(1+epoch))*ce_loss + be_loss
+                    # else:               
+                    #     loss = 10*ce_loss + be_loss
+                    #
+                    
+                    be_loss.backward()
+                    
+                    #Non-fixed lr part starts
+                    current_lr_q = config['lr'] / (1 + config['decay']*epoch)
+                    q_optimizer.param_groups[0]['lr'] = current_lr_q
+                    #Non-fixed lr part ends
+                    
+                    if config['clip'] != False:                    
+                        torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=config['clip'])
+                    q_optimizer.step()
+                    q_optimizer.zero_grad() #clear gradients for the batch
+                
+                    model.zero_grad()
+                    
+                    # epoch_train_loss += loss.item() 
+                    epoch_train_be_loss += be_loss.item() 
+                    # epoch_train_ce_loss += ce_loss.item() 
+                    
+                    # print(f"Epoch_train_loss: {epoch_train_loss}", end='\r')
+
+                
+                if i == 0: #i=0 means the first batch
+                    pred_r_values_print = pred_q_values[:10,:] - config['beta']*pred_vnext_values[:10,:] #for print
+                    chosen_r_values_print = torch.gather(pred_r_values_print, dim=1, index=true_actions[:10].unsqueeze(-1)) #for print
+                    true_r_values_print = true_rewards[:10].unsqueeze(1) #for print
+                    actions_print = true_actions[:10].int().unsqueeze(1) #for print
+                
+                    pred_r_values_with_true_r = torch.cat((actions_print, true_r_values_print, chosen_r_values_print), dim=1) #dimension is (batch_size, state_dim+action_dim)
+                    pred_r_values_np = pred_r_values_with_true_r.cpu().clone().detach().numpy()
+                    np.set_printoptions(suppress=True, precision=6)
+                    printw(f"Predicted r values: {pred_r_values_np}", config)
                 
        
                 
                 
             #len(train_dataset) is the number of batches in the training dataset
             # train_loss.append(epoch_train_loss / len(train_loader)) 
-            train_be_loss.append(epoch_train_be_loss)
-            train_ce_loss.append(epoch_train_ce_loss)
-            train_D_loss.append(epoch_train_D_loss)
+            train_be_loss.append(epoch_train_be_loss / len(train_loader))
+            # train_ce_loss.append(epoch_train_ce_loss / len(train_loader))
+            train_D_loss.append(epoch_train_D_loss / len(train_loader))
 
             end_time = time.time()
             
             # printw(f"\tTrain loss: {train_loss[-1]}", config)
             printw(f"\tBE loss: {train_be_loss[-1]}", config)
             # printw(f"\tCE loss: {train_ce_loss[-1]}", config)
-            if ce_weight:
-                printw(f"\tCE loss: {train_ce_loss[-1]}", config)
             printw(f"\tTrain time: {end_time - start_time}", config)
 
-            if last_eval_episode_return is not None:
-                printw(f"\tAverage episode return: {last_eval_episode_return}", config)
 
             # Logging and plotting
             
-            if (update + 1) % 1000 == 0:
+            if (epoch + 1) % 1000 == 0:
                 torch.save(model.state_dict(),
-                    f'models/{build_log_filename(config)}_rep{rep}_update{update+1}.pt')
+                    f'models/{build_log_filename(config)}_rep{rep}_epoch{epoch+1}.pt')
 
-            if (update + 1) % 1 == 0:
+            if (epoch + 1) % 1 == 0:
                 plt.figure(figsize=(12, 12))  # Increase the height to fit all plots
-                
+    
+                # # Plotting total train loss
+                # plt.subplot(5, 1, 1) # Adjust to 6x1 grid
+                # plt.yscale('log')
+                # plt.xlabel('epoch')
+                # plt.ylabel('Total Train Loss')
+                # plt.plot(train_loss[1:], label="Total Train Loss")
+                # plt.legend()
+
                 # Plotting BE loss
-                plt.subplot(5, 1, 1) # Second plot in a 6x1 grid
+                plt.subplot(5, 1, 2) # Second plot in a 6x1 grid
                 plt.yscale('log')
-                plt.xlabel('update')
+                plt.xlabel('epoch')
                 plt.ylabel('Train BE Loss')
                 plt.plot(train_be_loss[1:], label="Bellman Error Loss", color='red')
                 plt.legend()
-                
-                plt.subplot(5, 1, 2)
-                plt.xlabel('update')
-                plt.ylabel('Train CE Loss')
-                plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
-                plt.legend()
+
+                # # Plotting CE loss
+                # plt.subplot(5, 1, 3) # Third plot in a 6x1 grid
+                # plt.yscale('log')
+                # plt.xlabel('epoch')
+                # plt.ylabel('Train CE Loss')
+                # plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
+                # plt.legend()
                 
                 # Plotting r MAPE loss 
-                plt.subplot(5, 1, 3) # Fifth plot in a 6x1 grid
+                plt.subplot(5, 1, 4) # Fifth plot in a 6x1 grid
                 plt.yscale('log')
-                plt.xlabel('update')
+                plt.xlabel('epoch')
                 plt.ylabel('Test R MAPE Loss')
                 plt.plot(test_r_MAPE_loss[1:], label="r MAPE Loss", color='purple')
                 plt.legend()
                 
-                plt.subplot(5, 1, 4) # Sixth plot in a 6x1 grid
+                plt.subplot(5, 1, 5) # Sixth plot in a 6x1 grid
                 plt.yscale('log')
-                plt.xlabel('update')
+                plt.xlabel('epoch')
                 plt.ylabel('D Loss')
                 plt.plot(train_D_loss[1:], label="D Loss", color='orange')
                 plt.legend()
@@ -578,24 +557,8 @@ def train(config):
                 plt.savefig(f"figs/loss/{build_log_filename(config)}_rep{rep}_losses.png")
                 plt.close()
                 
-            if (update + 1) % eval_interval == 0:
-                env_id = ENV_GYM_IDS.get(config.get("env"))
-                if env_id and eval_episodes > 0:
-                    last_eval_episode_return = evaluate_policy(
-                        model,
-                        env_id,
-                        eval_episodes,
-                        device,
-                    )
-                    if last_eval_episode_return is not None:
-                        update_steps.append(update + 1)
-                        avg_episode_returns.append(last_eval_episode_return)
-                        printw(
-                            f"\tEval average episode return: {last_eval_episode_return}",
-                            config,
-                        )
-                        
-            ############### Finish of an update ##############
+
+            ############### Finish of an epoch ##############
         ##### Finish of all epochs #####
         
         printw(f"Best epoch for repetition {rep+1} : {best_epoch}", config)
@@ -608,25 +571,23 @@ def train(config):
             printw("No best r values were recorded during training.", config)  
             
         rep_test_r_MAPE_loss.append(test_r_MAPE_loss)
-        rep_episode_returns.append(avg_episode_returns)
-        rep_update_steps.append(update_steps)
             
         torch.save(model.state_dict(), f'models/{build_log_filename(config)}.pt')
         
         printw(f"\nTraining of repetition {rep+1} finished.", config)
         
     #### Finish of all repetitions ####    
-    rep_test_r_MAPE_loss = np.array(rep_test_r_MAPE_loss) #dimension is (repetitions, num_updates)
+    rep_test_r_MAPE_loss = np.array(rep_test_r_MAPE_loss) #dimension is (repetitions, num_epochs)
     
     mean_r_mape = np.mean(rep_test_r_MAPE_loss, axis=0) #dimension is (num_epochs,)
     std_r_mape = np.std(rep_test_r_MAPE_loss, axis=0)/np.sqrt(repetitions)
     
-    epochs = np.arange(0, num_updates)
+    epochs = np.arange(0, config['num_epochs'])
     
     plt.figure(figsize=(12, 6))  # Increase the height to fit all plots
 
     plt.yscale('log')
-    plt.xlabel('update')
+    plt.xlabel('epoch')
     plt.ylabel('R MAPE Loss')
     plt.plot(mean_r_mape, label="Mean R MAPE Loss", color='blue')
     plt.fill_between(epochs, mean_r_mape - std_r_mape, mean_r_mape + std_r_mape, alpha=0.2, color='blue')
@@ -637,29 +598,23 @@ def train(config):
     plt.savefig(f"figs/loss/Reps{repetitions}_{build_log_filename(config)}_losses.png")
     plt.close()
     
-    if rep_episode_returns and rep_update_steps:
-        min_len = min(len(returns) for returns in rep_episode_returns)
-        min_len = min(min_len, min(len(steps) for steps in rep_update_steps))
-        if min_len > 0:           
-            plt.figure()
-            all_returns = []
-            for returns, steps in zip(rep_episode_returns, rep_update_steps):
-                trimmed_returns = np.asarray(returns[:min_len])
-                trimmed_steps = np.asarray(steps[:min_len])
-                all_returns.append(trimmed_returns)
-                plt.plot(trimmed_steps, trimmed_returns, alpha=0.3)
-
-            mean_returns = np.mean(all_returns, axis=0)
-            std_returns = np.std(all_returns, axis=0)
-            plot_steps = np.asarray(rep_update_steps[0][:min_len])
-            plt.plot(plot_steps, mean_returns, linewidth=2, color='red')
-            plt.fill_between(plot_steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
-            env_name = config.get("env", "env")
-            plt.title(f"gladius ({env_name} offline mixed)")
-            plt.xlabel("Gradient Updates")
-            plt.ylabel("Average Episode Reward")
-            plt.savefig(f"figs/loss/Reps{repetitions}_{build_log_filename(config)}_episode_returns.png")
-            plt.close()
+    if rep_episode_returns:
+        plt.figure()
+        all_returns = []
+        for returns in rep_episode_returns:
+            steps = np.arange(len(returns))
+            all_returns.append(returns)
+            plt.plot(steps, returns, alpha=0.3)
+        mean_returns = np.mean(all_returns, axis=0)
+        std_returns = np.std(all_returns, axis=0)
+        plt.plot(steps, mean_returns, linewidth=2, color='red')
+        plt.fill_between(steps, mean_returns - std_returns, mean_returns + std_returns, alpha=0.2)
+        env_name = config.get("env", "env")
+        plt.title(f"SBEED ({env_name} offline mixed)")
+        plt.xlabel("Gradient Updates")
+        plt.ylabel("Average Episode Reward")
+        plt.savefig(f"figs/loss/Reps{repetitions}_{build_log_filename(config)}_episode_returns.png")
+        plt.close()    
     
     
     printw(f"\nTraining completed.", config)

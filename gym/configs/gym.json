@@ -20,7 +20,7 @@
   }
   ,
   "env_config": {
-    "env": "CP"
+    "env": ["CP", "LL", "AC"]
   },
   "experiments": [
     {
