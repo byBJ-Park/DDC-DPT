@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import torch.nn as nn
+import torch.nn.functional as F
+import gymnasium as gym
 from mlp import MLP
 from datetime import datetime
 
@@ -18,6 +20,13 @@ ENV_DATASET_FILES = {
     "CP": "D_Cartpole_medium_mixed.npz",
     "AC": "D_Acrobot_medium_mixed.npz",
 }
+
+ENV_GYM_IDS = {
+    "LL": "LunarLander-v2",
+    "CP": "CartPole-v1",
+    "AC": "Acrobot-v1",
+}
+
 ENV_ALIASES = {
     "LL": ["lunarlander"],
     "CP": ["cartpole"],
@@ -58,6 +67,26 @@ def resolve_npz_path(config):
                 if alias in candidate.lower():
                     return os.path.join(dataset_dir, candidate)
     return None
+
+def evaluate_policy(model, env_id, episodes, device):
+    env = gym.make(env_id)
+    returns = []
+    for _ in range(episodes):
+        obs, _ = env.reset()
+        done = False
+        total_reward = 0.0
+        while not done:
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            batch = {'states': obs_tensor, 'next_states': obs_tensor}
+            with torch.no_grad():
+                q_values, _, _ = model(batch)
+                action = torch.argmax(q_values, dim=1).item()
+            obs, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+            total_reward += reward
+        returns.append(total_reward)
+    env.close()
+    return float(np.mean(returns)) if returns else None
 
 class Dataset(torch.utils.data.Dataset):
     """Optimized Dataset class for storing and sampling (s, a, r, s') transitions."""
@@ -226,7 +255,8 @@ def train(config):
     
     batch_size = config['batch_size']
     num_updates = config.get('num_updates', config['num_epochs'])
-    eval_interval = config.get('eval_interval', 1000)
+    eval_interval = config.get('eval_interval', 1)
+    eval_episodes = config.get('eval_episodes', 5)
     eval_batches = config.get('eval_batches', 1)
 
     if config['env'] == 'LL':
@@ -259,7 +289,7 @@ def train(config):
     vnext_optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'], weight_decay=1e-4)
     CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
     MSE_loss_fn = torch.nn.MSELoss(reduction='mean')
-    MAE_loss_fn = torch.nn.L1Loss(reduction='mean')
+    ce_weight = config.get('ce_weight', 1.0)
     
     repetitions = config['repetitions']  # Number of repetitions
 
@@ -284,10 +314,12 @@ def train(config):
         print(f"\nStarting repetition {rep+1}/{repetitions}")
             
         train_be_loss = []
+        train_ce_loss = []
         train_D_loss = []
         test_r_MAPE_loss = []
         update_steps = []
         avg_episode_returns = []
+        last_eval_episode_return = None
         
         #Storing the best training epoch and its corresponding best Q MSE loss/Q values
         best_epoch = -1
@@ -405,6 +437,7 @@ def train(config):
             else:  # update Q only, update Q every 2 updates
                 # Mean_CrossEntropy_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
                 # ce_loss = Mean_CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
+                ce_loss = CrossEntropy_loss_fn(pred_q_values, true_actions) #shape  is (batch_size*horizon,)
 
                 #Setting pivot reward does not affect anything. So whatever we fix it it does not
                 # harm or benefit the outcome. However, for evaluation convenience,
@@ -446,7 +479,12 @@ def train(config):
                 #     loss = 10*ce_loss + be_loss
                 #
 
-                be_loss.backward()
+                if ce_weight:
+                    loss = ce_weight * ce_loss + be_loss
+                else:
+                    loss = be_loss
+                    
+                loss.backward()
 
                 #Non-fixed lr part starts
                 current_lr_q = config['lr'] / (1 + config['decay']*update)
@@ -461,8 +499,8 @@ def train(config):
                 model.zero_grad()
 
                 # epoch_train_loss += loss.item()
-                epoch_train_be_loss += be_loss.item()
-                # epoch_train_ce_loss += ce_loss.item()
+                epoch_train_be_loss += loss.item()
+                epoch_train_ce_loss += ce_loss.item()
 
                 # print(f"Epoch_train_loss: {epoch_train_loss}", end='\r')
 
@@ -482,7 +520,7 @@ def train(config):
             #len(train_dataset) is the number of batches in the training dataset
             # train_loss.append(epoch_train_loss / len(train_loader)) 
             train_be_loss.append(epoch_train_be_loss)
-            # train_ce_loss.append(epoch_train_ce_loss / len(train_loader))
+            train_ce_loss.append(epoch_train_ce_loss)
             train_D_loss.append(epoch_train_D_loss)
 
             end_time = time.time()
@@ -490,8 +528,12 @@ def train(config):
             # printw(f"\tTrain loss: {train_loss[-1]}", config)
             printw(f"\tBE loss: {train_be_loss[-1]}", config)
             # printw(f"\tCE loss: {train_ce_loss[-1]}", config)
+            if ce_weight:
+                printw(f"\tCE loss: {train_ce_loss[-1]}", config)
             printw(f"\tTrain time: {end_time - start_time}", config)
 
+            if last_eval_episode_return is not None:
+                printw(f"\tAverage episode return: {last_eval_episode_return}", config)
 
             # Logging and plotting
             
@@ -501,40 +543,30 @@ def train(config):
 
             if (update + 1) % 1 == 0:
                 plt.figure(figsize=(12, 12))  # Increase the height to fit all plots
-    
-                # # Plotting total train loss
-                # plt.subplot(5, 1, 1) # Adjust to 6x1 grid
-                # plt.yscale('log')
-                # plt.xlabel('epoch')
-                # plt.ylabel('Total Train Loss')
-                # plt.plot(train_loss[1:], label="Total Train Loss")
-                # plt.legend()
-
+                
                 # Plotting BE loss
-                plt.subplot(5, 1, 2) # Second plot in a 6x1 grid
+                plt.subplot(5, 1, 1) # Second plot in a 6x1 grid
                 plt.yscale('log')
                 plt.xlabel('update')
                 plt.ylabel('Train BE Loss')
                 plt.plot(train_be_loss[1:], label="Bellman Error Loss", color='red')
                 plt.legend()
-
-                # # Plotting CE loss
-                # plt.subplot(5, 1, 3) # Third plot in a 6x1 grid
-                # plt.yscale('log')
-                # plt.xlabel('epoch')
-                # plt.ylabel('Train CE Loss')
-                # plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
-                # plt.legend()
+                
+                plt.subplot(5, 1, 2)
+                plt.xlabel('update')
+                plt.ylabel('Train CE Loss')
+                plt.plot(train_ce_loss[1:], label="Cross-Entropy Loss", color='blue')
+                plt.legend()
                 
                 # Plotting r MAPE loss 
-                plt.subplot(5, 1, 4) # Fifth plot in a 6x1 grid
+                plt.subplot(5, 1, 3) # Fifth plot in a 6x1 grid
                 plt.yscale('log')
                 plt.xlabel('update')
                 plt.ylabel('Test R MAPE Loss')
                 plt.plot(test_r_MAPE_loss[1:], label="r MAPE Loss", color='purple')
                 plt.legend()
                 
-                plt.subplot(5, 1, 5) # Sixth plot in a 6x1 grid
+                plt.subplot(5, 1, 4) # Sixth plot in a 6x1 grid
                 plt.yscale('log')
                 plt.xlabel('update')
                 plt.ylabel('D Loss')
@@ -547,13 +579,22 @@ def train(config):
                 plt.close()
                 
             if (update + 1) % eval_interval == 0:
-                episode_returns = np.asarray(getattr(train_dataset, "episode_returns", []))
-                if episode_returns.size > 0:
-                    update_steps.append(update + 1)
-                    avg_episode_return = float(np.mean(episode_returns))
-                    avg_episode_returns.append(avg_episode_return)
-                    printw(f"\tAverage episode return: {avg_episode_return}", config)
-
+                env_id = ENV_GYM_IDS.get(config.get("env"))
+                if env_id and eval_episodes > 0:
+                    last_eval_episode_return = evaluate_policy(
+                        model,
+                        env_id,
+                        eval_episodes,
+                        device,
+                    )
+                    if last_eval_episode_return is not None:
+                        update_steps.append(update + 1)
+                        avg_episode_returns.append(last_eval_episode_return)
+                        printw(
+                            f"\tEval average episode return: {last_eval_episode_return}",
+                            config,
+                        )
+                        
             ############### Finish of an update ##############
         ##### Finish of all epochs #####
         
@@ -599,8 +640,7 @@ def train(config):
     if rep_episode_returns and rep_update_steps:
         min_len = min(len(returns) for returns in rep_episode_returns)
         min_len = min(min_len, min(len(steps) for steps in rep_update_steps))
-        if min_len > 0:
-            
+        if min_len > 0:           
             plt.figure()
             all_returns = []
             for returns, steps in zip(rep_episode_returns, rep_update_steps):
