@@ -11,7 +11,7 @@
   "test": false,
   "store_gpu": true,
   "layer_norm": false,
-  "num_epochs": 15000,
+  "num_epochs": 5000,
   "repetitions": 1,
   "lr":0.0005,
   "Tik": false,
@@ -20,7 +20,7 @@
   }
   ,
   "env_config": {
-    "env": "CP"
+    "env": "LL"
   },
   "experiments": [
     {
